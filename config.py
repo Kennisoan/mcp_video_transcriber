@@ -16,7 +16,8 @@ class Config:
     # Server Configuration
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
-    SERVER_URL: str = os.getenv("SERVER_URL", f"http://localhost:{PORT}")
+    SERVER_URL: str = os.getenv(
+        "SERVER_URL", f"http://localhost:{PORT}").rstrip("/")
 
     # Security Configuration
     JWT_SECRET: str = os.getenv("JWT_SECRET", secrets.token_urlsafe(32))
