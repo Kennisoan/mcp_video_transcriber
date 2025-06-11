@@ -7,6 +7,7 @@ This file only handles app setup, routing, and middleware configuration.
 
 import os
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,13 +16,53 @@ from config import Config
 from oauth import create_oauth_router
 from mcp_server import get_mcp_server
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler for startup and shutdown events"""
+    # Startup
+    print(f"🚀 MCP Video Transcriber starting up...")
+    print(f"📍 Server URL: {Config.SERVER_URL}")
+    print(f"📊 API Base URL: {Config.API_BASE_URL}")
+    print(
+        f"🔐 OAuth Discovery: {Config.SERVER_URL}/.well-known/oauth-authorization-server")
+    print(f"📡 MCP SSE Endpoint: {Config.SERVER_URL}/sse")
+    print(f"📖 Documentation: {Config.SERVER_URL}/docs")
+
+    # Initialize MCP server
+    mcp_server = get_mcp_server()
+    tools = await mcp_server.get_tools()
+    print(f"🛠️  MCP Tools registered: {len(tools)}")
+    for tool in tools:
+        # Tools may be strings or objects, handle both cases
+        if hasattr(tool, 'name'):
+            print(f"   - {tool.name}: {tool.description}")
+        else:
+            print(f"   - {tool}")
+
+    # Database cleanup
+    from database import db_manager
+    expired_count = db_manager.cleanup_expired_codes()
+    if expired_count > 0:
+        print(f"🧹 Cleaned up {expired_count} expired authorization codes")
+
+    stats = db_manager.get_stats()
+    print(f"📊 Database stats: {stats}")
+
+    yield
+
+    # Shutdown
+    print("🛑 MCP Video Transcriber shutting down...")
+
+
 # Initialize FastAPI application
 app = FastAPI(
     title="MCP Video Transcriber",
     description="OAuth 2.1 compliant MCP server for video transcription",
     version="2.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -59,45 +100,6 @@ async def root():
         "mcp_endpoint": f"{Config.SERVER_URL}/sse"
     }
 
-# Application startup
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Application startup tasks"""
-    print(f"🚀 MCP Video Transcriber starting up...")
-    print(f"📍 Server URL: {Config.SERVER_URL}")
-    print(f"📊 API Base URL: {Config.API_BASE_URL}")
-    print(
-        f"🔐 OAuth Discovery: {Config.SERVER_URL}/.well-known/oauth-authorization-server")
-    print(f"📡 MCP SSE Endpoint: {Config.SERVER_URL}/sse")
-    print(f"📖 Documentation: {Config.SERVER_URL}/docs")
-
-    # Initialize MCP server
-    mcp_server = get_mcp_server()
-    tools = await mcp_server.get_tools()
-    print(f"🛠️  MCP Tools registered: {len(tools)}")
-    for tool in tools:
-        # Tools may be strings or objects, handle both cases
-        if hasattr(tool, 'name'):
-            print(f"   - {tool.name}: {tool.description}")
-        else:
-            print(f"   - {tool}")
-
-    # Database cleanup
-    from database import db_manager
-    expired_count = db_manager.cleanup_expired_codes()
-    if expired_count > 0:
-        print(f"🧹 Cleaned up {expired_count} expired authorization codes")
-
-    stats = db_manager.get_stats()
-    print(f"📊 Database stats: {stats}")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Application shutdown tasks"""
-    print("🛑 MCP Video Transcriber shutting down...")
 
 # Development server runner
 
