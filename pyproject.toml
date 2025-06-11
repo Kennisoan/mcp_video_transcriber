@@ -1,0 +1,10 @@
+[project]
+name = "mcp-video-transcriber"
+version = "0.1.0"
+description = "MCP server for transcribing videos"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.9.2",
+]
