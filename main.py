@@ -1,82 +1,117 @@
-from typing import Any
+"""
+MCP Video Transcriber Server - Main Application
+
+Clean, production-ready FastAPI application with proper separation of concerns.
+This file only handles app setup, routing, and middleware configuration.
+"""
+
 import os
-import httpx
-from mcp.server.fastmcp import FastMCP
+import uvicorn
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
-# Initialize FastMCP server
-mcp = FastMCP("video_transcriber")
-API_BASE_URL = os.getenv("API_BASE_URL").rstrip("/")
+from config import Config
+from oauth import create_oauth_router
+from mcp_server import get_mcp_server
 
+# Initialize FastAPI application
+app = FastAPI(
+    title="MCP Video Transcriber",
+    description="OAuth 2.1 compliant MCP server for video transcription",
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
-@mcp.tool()
-async def get_projects() -> str:
-    """Get a list of projects with transcribed videos"""
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{API_BASE_URL}/api/projects/")
-            response.raise_for_status()
-            return response.text
-    except Exception as e:
-        return f"Request error: {e}"
+# Add CORS middleware
+app.add_middleware(CORSMiddleware, **Config.get_cors_settings())
 
+# Include OAuth router (all OAuth endpoints)
+oauth_router = create_oauth_router()
+app.include_router(oauth_router)
 
-@mcp.tool()
-async def create_project(project_name: str) -> str:
-    """
-    Create a new project
-    Hint: ask the user before naming the project, don't use generic project names, come up with the name from the context of the conversation or use the user's name.
-    """
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(f"{API_BASE_URL}/api/projects/", json={"name": project_name})
-            response.raise_for_status()
-            return response.text
-    except Exception as e:
-        return f"Request error: {e}"
+# Handle 401 errors with proper WWW-Authenticate header
 
 
-@mcp.tool()
-async def get_video_transcripts(project_id: str) -> str:
-    """
-    Get a list of video transcripts for a project
-    Hint: You can get all projects with their names and ids using get_projects tool.
-    """
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{API_BASE_URL}/api/videos/?project_id={project_id}")
-            response.raise_for_status()
-            return response.text
-    except Exception as e:
-        return f"Request error: {e}"
+@app.exception_handler(401)
+async def auth_exception_handler(request: Request, exc: HTTPException):
+    """Handle 401 errors with proper WWW-Authenticate header"""
+    return JSONResponse(
+        status_code=401,
+        content={"detail": exc.detail},
+        headers={
+            "WWW-Authenticate": f'Bearer resource="{Config.SERVER_URL}/.well-known/oauth-protected-resource"'
+        }
+    )
+
+# Root endpoint
 
 
-@mcp.tool()
-async def transcribe_video(project_id: str, video_url: str) -> str:
-    """
-    Transcribe a video.
-    Hints:
-    - This tool will add a video to the project, and it will be transcribed asynchronously.
-    - If the user does not specify they want to add a video to an existing project or create a new one, use project_id = 1. If they explicitly do — use respective tools to get a project_id.
-    - The video_url must be a full valid youtube video url that begins with https://www.youtube.com/watch?v=
-    - The tool will return the video object with it's status immediately. If the video is in the processing status, you can check back on it later by using get_video_transcripts tool with the same project_id (find the needed video in the response by it's id). The video will be transcribed in about a minute.
-    """
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{API_BASE_URL}/api/videos/",
-                json={
-                    "project_id": project_id,
-                    "link": video_url,
-                    "status": "pending",
-                    "chat_state": "initial"
-                }
-            )
-            response.raise_for_status()
-            return response.text
-    except Exception as e:
-        return f"Request error: {e}"
+@app.get("/")
+async def root():
+    """Root endpoint with service information"""
+    return {
+        "service": "MCP Video Transcriber",
+        "version": "2.0.0",
+        "oauth_discovery": f"{Config.SERVER_URL}/.well-known/oauth-authorization-server",
+        "documentation": f"{Config.SERVER_URL}/docs",
+        "mcp_endpoint": f"{Config.SERVER_URL}/sse"
+    }
+
+# Application startup
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Application startup tasks"""
+    print(f"🚀 MCP Video Transcriber starting up...")
+    print(f"📍 Server URL: {Config.SERVER_URL}")
+    print(f"📊 API Base URL: {Config.API_BASE_URL}")
+    print(
+        f"🔐 OAuth Discovery: {Config.SERVER_URL}/.well-known/oauth-authorization-server")
+    print(f"📡 MCP SSE Endpoint: {Config.SERVER_URL}/sse")
+    print(f"📖 Documentation: {Config.SERVER_URL}/docs")
+
+    # Initialize MCP server
+    mcp_server = get_mcp_server()
+    tools = mcp_server.get_tools()
+    print(f"🛠️  MCP Tools registered: {len(tools)}")
+    for tool in tools:
+        print(f"   - {tool.name}: {tool.description}")
+
+    # Database cleanup
+    from database import db_manager
+    expired_count = db_manager.cleanup_expired_codes()
+    if expired_count > 0:
+        print(f"🧹 Cleaned up {expired_count} expired authorization codes")
+
+    stats = db_manager.get_stats()
+    print(f"📊 Database stats: {stats}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Application shutdown tasks"""
+    print("🛑 MCP Video Transcriber shutting down...")
+
+# Development server runner
+
+
+def run_server():
+    """Run the development server"""
+    print(f"🔧 Starting development server...")
+    print(f"🌐 Host: {Config.HOST}:{Config.PORT}")
+    print(f"📁 Working directory: {os.getcwd()}")
+
+    uvicorn.run(
+        app,
+        host=Config.HOST,
+        port=Config.PORT,
+        log_level="info",
+        access_log=True
+    )
 
 
 if __name__ == "__main__":
-    # Initialize and run the server
-    mcp.run(transport='stdio')
+    run_server()

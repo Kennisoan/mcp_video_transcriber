@@ -8,3 +8,15 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Environment and secrets
+.env
+*.env
+!env.example
+
+# Runtime data
+data/
+logs/
+
+# Docker
+.dockerignore
