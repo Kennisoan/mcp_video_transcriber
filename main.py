@@ -78,7 +78,11 @@ async def startup_event():
     tools = await mcp_server.get_tools()
     print(f"🛠️  MCP Tools registered: {len(tools)}")
     for tool in tools:
-        print(f"   - {tool.name}: {tool.description}")
+        # Tools may be strings or objects, handle both cases
+        if hasattr(tool, 'name'):
+            print(f"   - {tool.name}: {tool.description}")
+        else:
+            print(f"   - {tool}")
 
     # Database cleanup
     from database import db_manager
