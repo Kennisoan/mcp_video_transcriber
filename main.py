@@ -75,7 +75,7 @@ async def startup_event():
 
     # Initialize MCP server
     mcp_server = get_mcp_server()
-    tools = mcp_server.get_tools()
+    tools = await mcp_server.get_tools()
     print(f"🛠️  MCP Tools registered: {len(tools)}")
     for tool in tools:
         print(f"   - {tool.name}: {tool.description}")
