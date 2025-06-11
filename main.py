@@ -1,14 +1,14 @@
 from typing import Any
 import os
 import httpx
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 # Initialize FastMCP server
-mcp = FastMCP("video_transcriber")
-API_BASE_URL = os.getenv("API_BASE_URL").rstrip("/")
+mcp = FastMCP(name="Video Transcriber")
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
 
 
-@mcp.tool()
+@mcp.tool
 async def get_projects() -> str:
     """Get a list of projects with transcribed videos"""
     try:
@@ -20,7 +20,7 @@ async def get_projects() -> str:
         return f"Request error: {e}"
 
 
-@mcp.tool()
+@mcp.tool
 async def create_project(project_name: str) -> str:
     """
     Create a new project
@@ -35,7 +35,7 @@ async def create_project(project_name: str) -> str:
         return f"Request error: {e}"
 
 
-@mcp.tool()
+@mcp.tool
 async def get_video_transcripts(project_id: str) -> str:
     """
     Get a list of video transcripts for a project
@@ -50,7 +50,7 @@ async def get_video_transcripts(project_id: str) -> str:
         return f"Request error: {e}"
 
 
-@mcp.tool()
+@mcp.tool
 async def transcribe_video(project_id: str, video_url: str) -> str:
     """
     Transcribe a video.
@@ -79,4 +79,4 @@ async def transcribe_video(project_id: str, video_url: str) -> str:
 
 if __name__ == "__main__":
     # Initialize and run the server
-    mcp.run(transport='stdio')
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)

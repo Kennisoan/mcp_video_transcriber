@@ -1,0 +1,30 @@
+services:
+  mcp_video_transcriber:
+    build: .
+    container_name: mcp_video_transcriber
+    restart: unless-stopped
+    environment:
+      - API_BASE_URL=http://localhost:8000
+    networks:
+      - mcp_network
+      - external_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: mcp_nginx_proxy
+    restart: unless-stopped
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    depends_on:
+      - mcp_video_transcriber
+    networks:
+      - mcp_network
+      - external_network
+
+networks:
+  mcp_network:
+    driver: bridge
+  external_network:
+    # external: true
+    # name: nginx-proxy
