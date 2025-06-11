@@ -26,5 +26,5 @@ networks:
   mcp_network:
     driver: bridge
   external_network:
-    # external: true
-    # name: nginx-proxy
+    external: true
+    name: nginx-proxy
