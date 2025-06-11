@@ -79,4 +79,4 @@ async def transcribe_video(project_id: str, video_url: str) -> str:
 
 if __name__ == "__main__":
     # Initialize and run the server
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
