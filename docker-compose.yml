@@ -7,11 +7,11 @@ services:
       - API_BASE_URL=http://localhost:8000
     networks:
       - mcp_network
-      - external_network
+      - frontend
 
   nginx:
     image: nginx:alpine
-    container_name: mcp_nginx_proxy
+    container_name: mcp_nginx
     restart: unless-stopped
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
@@ -20,11 +20,11 @@ services:
       - mcp_video_transcriber
     networks:
       - mcp_network
-      - external_network
+      - frontend
 
 networks:
   mcp_network:
     driver: bridge
-  external_network:
+  frontend:
     external: true
     name: nginx-proxy
