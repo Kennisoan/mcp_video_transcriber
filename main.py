@@ -7,14 +7,18 @@ This file only handles app setup, routing, and middleware configuration.
 
 import os
 import uvicorn
+import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.applications import Starlette
+from starlette.routing import Route, Mount
 
 from config import Config
 from oauth import create_oauth_router
 from mcp_server import get_mcp_server
+from sse import create_sse_server
 
 
 @asynccontextmanager
@@ -72,6 +76,11 @@ app.add_middleware(CORSMiddleware, **Config.get_cors_settings())
 oauth_router = create_oauth_router()
 app.include_router(oauth_router)
 
+# Mount the FastMCP SSE server
+mcp_server = get_mcp_server()
+sse_app = create_sse_server(mcp_server)
+app.mount("/", sse_app)
+
 # Handle 401 errors with proper WWW-Authenticate header
 
 
@@ -98,6 +107,24 @@ async def root():
         "oauth_discovery": f"{Config.SERVER_URL}/.well-known/oauth-authorization-server",
         "documentation": f"{Config.SERVER_URL}/docs",
         "mcp_endpoint": f"{Config.SERVER_URL}/sse"
+    }
+
+
+# Alternative: Simple MCP endpoint for tools listing
+@app.get("/mcp/tools")
+async def list_mcp_tools():
+    """List available MCP tools without authentication"""
+    mcp_server = get_mcp_server()
+    tools = await mcp_server.get_tools()
+
+    return {
+        "tools": [
+            {
+                "name": tool if isinstance(tool, str) else getattr(tool, 'name', str(tool)),
+                "description": getattr(tool, 'description', 'Video transcription tool') if hasattr(tool, 'description') else 'Video transcription tool'
+            }
+            for tool in tools
+        ]
     }
 
 
